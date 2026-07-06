@@ -1,0 +1,11 @@
+#Detect Canon Selphy 1300 printers
+ACTION=="add", ENV{PRODUCT}=="4a9/32db/1", RUN+="/home/pi/onAddingPrinter.sh"
+ACTION=="remove", ENV{PRODUCT}=="4a9/32db/1", RUN+="/home/pi/onRemovingPrinter.sh"
+
+#Detect Canon Selphy 1500 printers
+ACTION=="add", ENV{PRODUCT}=="4a9/3302/1", RUN+="/home/pi/onAddingPrinter.sh"
+ACTION=="remove", ENV{PRODUCT}=="4a9/3302/1", RUN+="/home/pi/onRemovingPrinter.sh"
+
+#Detect DNP QW410 printers
+ACTION=="add", ENV{PRODUCT}=="1452/9201/100", RUN+="/home/pi/onAddingPrinter.sh"
+ACTION=="remove", ENV{PRODUCT}=="1452/9201/100", RUN+="/home/pi/onRemovingPrinter.sh"

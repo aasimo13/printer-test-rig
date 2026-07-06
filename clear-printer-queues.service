@@ -1,0 +1,11 @@
+[Unit]
+Description=Clear all CUPS printer queues on boot
+After=cups.service
+Requires=cups.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/pi/removeAnyPrinterQueue.sh
+
+[Install]
+WantedBy=multi-user.target
