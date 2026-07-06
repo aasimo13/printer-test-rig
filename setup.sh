@@ -24,17 +24,24 @@ usermod -aG lpadmin pi
 # (added 2025-03-12). The older 5.3.4 release stops at the CP1300, so CP1500 prints
 # fail with "Unable to find Gutenprint driver named Canon SELPHY CP1500". Do not
 # downgrade below 5.3.5 unless you also stop using a CP1500.
-echo "=== Building Gutenprint 5.3.5 from source ==="
-cd /tmp
-if [ ! -f gutenprint-5.3.5.tar.xz ]; then
-    wget https://sourceforge.net/projects/gimp-print/files/gutenprint-5.3/5.3.5/gutenprint-5.3.5.tar.xz/download -O gutenprint-5.3.5.tar.xz
+# Skip the (slow, ~10-20 min) source build if Gutenprint already provides the
+# canon-cp1500 driver — makes re-running setup.sh on an updated Pi fast. Force a
+# rebuild with: FORCE_GUTENPRINT_BUILD=1 sudo bash setup.sh
+if [ "${FORCE_GUTENPRINT_BUILD:-0}" != "1" ] && cups-genppd.5.3 -M 2>/dev/null | grep -qx canon-cp1500; then
+    echo "=== Gutenprint 5.3.5 (canon-cp1500) already installed — skipping build ==="
+else
+    echo "=== Building Gutenprint 5.3.5 from source ==="
+    cd /tmp
+    if [ ! -f gutenprint-5.3.5.tar.xz ]; then
+        wget https://sourceforge.net/projects/gimp-print/files/gutenprint-5.3/5.3.5/gutenprint-5.3.5.tar.xz/download -O gutenprint-5.3.5.tar.xz
+    fi
+    tar xf gutenprint-5.3.5.tar.xz
+    cd gutenprint-5.3.5
+    ./configure --without-gimp
+    make -j$(nproc)
+    make install
+    ldconfig
 fi
-tar xf gutenprint-5.3.5.tar.xz
-cd gutenprint-5.3.5
-./configure --without-gimp
-make -j$(nproc)
-make install
-ldconfig
 
 # Sanity check: the CP1500 driver must be present or the rig cannot print to a CP1500
 if ! cups-genppd.5.3 -M 2>/dev/null | grep -qx canon-cp1500; then
