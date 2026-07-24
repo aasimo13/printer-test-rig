@@ -33,11 +33,5 @@ if [ "${PRODUCT}" = "1452/9201/100" ]; then
 	lpoptions -p "$tempDevName" -o StpiShrinkOutput=Expand
 	lpoptions -p "$tempDevName" -o StpBorderless=True
 
-	# The DNP reprints continuously until it is unplugged. udev kills any
-	# long-running process spawned directly from a RUN+= rule, so launch the
-	# loop as a detached transient systemd unit that outlives this script.
-	# onRemovingPrinter.sh stops the same unit on unplug.
-	unitName="print-loop-${tempDevName}"
-	systemd-run --no-block --collect --unit="$unitName" \
-		/home/pi/printLoop.sh "$tempDevName"
+	lp -d "$tempDevName" "/home/pi/testImage.jpg"
 fi

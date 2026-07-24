@@ -52,7 +52,6 @@ fi
 echo "=== Copying files to $PI_HOME ==="
 cp "$SCRIPT_DIR/onAddingPrinter.sh" "$PI_HOME/"
 cp "$SCRIPT_DIR/onRemovingPrinter.sh" "$PI_HOME/"
-cp "$SCRIPT_DIR/printLoop.sh" "$PI_HOME/"
 cp "$SCRIPT_DIR/removeAnyPrinterQueue.sh" "$PI_HOME/"
 cp "$SCRIPT_DIR/Canon_SELPHY_CP1300.ppd" "$PI_HOME/"
 cp "$SCRIPT_DIR/Canon_SELPHY_CP1500.ppd" "$PI_HOME/"
@@ -61,7 +60,6 @@ cp "$SCRIPT_DIR/testImage.jpg" "$PI_HOME/"
 
 chmod +x "$PI_HOME/onAddingPrinter.sh"
 chmod +x "$PI_HOME/onRemovingPrinter.sh"
-chmod +x "$PI_HOME/printLoop.sh"
 chmod +x "$PI_HOME/removeAnyPrinterQueue.sh"
 chown pi:pi "$PI_HOME"/*.sh "$PI_HOME"/*.ppd "$PI_HOME"/testImage.jpg
 
