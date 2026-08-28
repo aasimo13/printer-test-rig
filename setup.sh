@@ -15,7 +15,7 @@ PI_HOME="/home/pi"
 
 echo "=== Installing dependencies ==="
 apt-get update
-apt-get install -y cups libcups2-dev libusb-1.0-0-dev build-essential wget xsltproc xz-utils
+apt-get install -y cups libcups2-dev libusb-1.0-0-dev build-essential wget xsltproc xz-utils iw
 
 # Add pi user to lpadmin group so CUPS commands work
 usermod -aG lpadmin pi
@@ -53,6 +53,7 @@ echo "=== Copying files to $PI_HOME ==="
 cp "$SCRIPT_DIR/onAddingPrinter.sh" "$PI_HOME/"
 cp "$SCRIPT_DIR/onRemovingPrinter.sh" "$PI_HOME/"
 cp "$SCRIPT_DIR/removeAnyPrinterQueue.sh" "$PI_HOME/"
+cp "$SCRIPT_DIR/wifiPowerSaveOff.sh" "$PI_HOME/"
 cp "$SCRIPT_DIR/Canon_SELPHY_CP1300.ppd" "$PI_HOME/"
 cp "$SCRIPT_DIR/Canon_SELPHY_CP1500.ppd" "$PI_HOME/"
 cp "$SCRIPT_DIR/Dai_Nippon_Printing_DP-QW410.ppd" "$PI_HOME/"
@@ -61,6 +62,7 @@ cp "$SCRIPT_DIR/testImage.jpg" "$PI_HOME/"
 chmod +x "$PI_HOME/onAddingPrinter.sh"
 chmod +x "$PI_HOME/onRemovingPrinter.sh"
 chmod +x "$PI_HOME/removeAnyPrinterQueue.sh"
+chmod +x "$PI_HOME/wifiPowerSaveOff.sh"
 chown pi:pi "$PI_HOME"/*.sh "$PI_HOME"/*.ppd "$PI_HOME"/testImage.jpg
 
 echo "=== Installing udev rules ==="
@@ -82,6 +84,20 @@ systemctl start cups
 echo "=== Masking ipp-usb (prevents it resetting the printer mid-print) ==="
 systemctl stop ipp-usb.service 2>/dev/null || true
 systemctl mask ipp-usb.service
+
+echo "=== Disabling Wi-Fi power saving ==="
+# The rig sits idle waiting for a printer to be plugged in, and the Wi-Fi chip's
+# default power saving drops it off the network while it waits. Two settings
+# because there are two stacks: the unit covers dhcpcd images and applies now,
+# the NetworkManager drop-in stops NM turning powersave back on at each reconnect.
+install -d /etc/NetworkManager/conf.d
+cp "$SCRIPT_DIR/wifi-powersave-off.conf" /etc/NetworkManager/conf.d/
+cp "$SCRIPT_DIR/wifi-powersave-off.service" /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable wifi-powersave-off.service
+# reload, not restart: a restart would drop the SSH session running this script.
+systemctl reload NetworkManager 2>/dev/null || true
+systemctl start wifi-powersave-off.service || true
 
 echo "=== Installing boot-time queue cleanup service ==="
 cp "$SCRIPT_DIR/clear-printer-queues.service" /etc/systemd/system/
