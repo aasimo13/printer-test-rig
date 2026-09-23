@@ -7,6 +7,8 @@ After a `git pull`: `sudo bash update.sh`.
 
 ## Station stopped printing? Reset it
 
+Step by step for SSH, updating, and resetting: [STATION-GUIDE.md](STATION-GUIDE.md).
+
 This clears stuck jobs, deletes every printer queue, restarts CUPS, and re detects whatever printer is plugged in. Each connected printer gets a fresh queue and one test print. No reboot needed.
 
 From a Mac with this repo:
