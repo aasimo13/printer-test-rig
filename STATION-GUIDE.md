@@ -1,6 +1,6 @@
 # Printer Station Guide
 
-How to get into a check/clean station Pi, update it, run commands, and reset it when it stops printing.
+How to set up a check/clean station Pi, get into it, update it, run commands, and reset it when it stops printing.
 
 Everywhere below, swap `<station>` for the station's hostname (for example `pr-test-rig-2`). Ask Aaron for the password if you don't have it.
 
@@ -24,7 +24,46 @@ To log out:
 exit
 ```
 
-## 2. Update the station
+## 2. Install on a new Pi
+
+Skip this if the station already prints. You need a Raspberry Pi, a microSD card (16 GB or bigger), and a computer with Raspberry Pi Imager (free from raspberrypi.com/software).
+
+1. Put the SD card in your computer and open Raspberry Pi Imager.
+2. Pick your Pi model, then Raspberry Pi OS (64-bit), then the SD card.
+3. When it asks about OS customisation, fill it in:
+    - Hostname: the station name, for example `pr-test-rig-3`. Use a name no other station has.
+    - Username: `pi`. It has to be exactly `pi`, the scripts only work from `/home/pi`.
+    - Password: the station password.
+    - Wi-Fi: the shop network name and password, and set the country to US. Skip this if the Pi is on an ethernet cable.
+    - Services: turn on SSH and pick password authentication.
+4. Write the card, put it in the Pi, and power it on. The first boot takes a few minutes.
+5. Log in like in step 1, using the hostname you picked.
+
+Once you're logged in, install git and download the program:
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+```
+
+```bash
+git clone https://github.com/aasimo13/printer-test-rig.git ~/printer-test-rig
+```
+
+Run the installer. It builds the printer driver from source, so it takes around 20 minutes. Don't close the window or let your computer sleep until it's done.
+
+```bash
+cd ~/printer-test-rig && sudo bash setup.sh
+```
+
+It should end with `=== Setup complete! ===`. Reboot:
+
+```bash
+sudo reboot
+```
+
+Wait a minute, then plug in a Canon CP1300, CP1500, or DNP QW410. It should print the test page by itself. If it doesn't, go to step 5.
+
+## 3. Update the station
 
 Run this once you're logged in. It pulls the latest scripts from GitHub and installs them. It takes a few seconds and doesn't reboot anything.
 
@@ -34,15 +73,11 @@ cd ~/printer-test-rig && git pull && sudo bash update.sh
 
 It should end with `=== Update complete! ===`.
 
-If you see `No such file or directory`, the repo isn't on that Pi yet. Clone it first, then run the update command again:
+If you see `No such file or directory`, the program isn't on that Pi yet. Do step 2 instead.
 
-```bash
-git clone https://github.com/aasimo13/printer-test-rig.git ~/printer-test-rig
-```
+If `update.sh` says to run `setup.sh`, that Pi was never fully installed. Run the installer from step 2.
 
-If `update.sh` says to run `setup.sh`, that Pi was never set up properly. Stop there and tell Aaron. `setup.sh` builds the printer driver from source and takes 20 minutes.
-
-## 3. Run a command
+## 4. Run a command
 
 Type the command and hit Enter. Anything that changes the system needs `sudo` in front. These are the useful ones.
 
@@ -82,7 +117,7 @@ Reboot the Pi (this logs you out, wait a minute before you log back in):
 sudo reboot
 ```
 
-## 4. Reset when it stops printing
+## 5. Reset when it stops printing
 
 This clears stuck jobs, wipes the printer list, restarts the print system, and re-detects whatever printer is plugged in. Each plugged in printer gets set up again and prints one test page. No reboot needed.
 
@@ -106,7 +141,7 @@ sudo /home/pi/resetRig.sh --no-print
 
 The end of the output lists the printer queues and jobs. If a printer is plugged in you should see one queue and it should start printing.
 
-`resetRig.sh: command not found` means the station hasn't been updated yet. Do step 2 first.
+`resetRig.sh: command not found` means the station hasn't been updated yet. Do step 3 first.
 
 ## Still not printing
 
