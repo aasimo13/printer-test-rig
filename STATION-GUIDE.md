@@ -1,163 +1,212 @@
 # Printer Station Guide
 
-How to set up a check/clean station Pi, get into it, update it, run commands, and reset it when it stops printing.
+For the check/clean station Pis that auto print a test page when a Canon CP1300, CP1500, or DNP QW410 is plugged in.
 
-Everywhere below, swap `<station>` for the station's hostname (for example `pr-test-rig-2`). Ask Aaron for the password if you don't have it.
+Find what you need to do, go to that section, and follow the steps in order.
+
+| I want to | Go to |
+|---|---|
+| Get into a station | 1. Log in |
+| Get out of a station | 2. Log out |
+| Make a new station from a blank SD card | 3. Prepare the SD card, then 4. Install the program |
+| Get the latest version on a station | 5. Update a station |
+| A station stopped printing | 6. Reset a station |
+| Reset without logging in first | 7. Reset from your computer |
+| See what a station is doing | 8. Check a station |
+| Reset didn't fix it | 9. Still not printing |
+| Can't connect | 10. Connection errors |
+
+Everywhere you see `<station>`, type the station's hostname instead (for example `pr-test-rig-2`). Ask Aaron for the password.
 
 ## 1. Log in
 
-Open Terminal on a Mac, or PowerShell on Windows. Both have `ssh` built in. The computer has to be on the same network as the station.
+1. On a Mac open Terminal. On Windows open PowerShell.
+2. Make sure your computer is on the same network as the station.
+3. Type this and hit Enter:
 
-```bash
-ssh pi@<station>.local
-```
+    ```bash
+    ssh pi@<station>.local
+    ```
 
-The first time you connect to a station it asks `Are you sure you want to continue connecting?`. Type `yes` and hit Enter.
+4. First time only: if it asks `Are you sure you want to continue connecting?`, type `yes` and hit Enter.
+5. Type the password and hit Enter. Nothing shows up while you type, that's normal.
+6. You're in when the prompt looks like `pi@<station>:~ $`. Everything you type now runs on the Pi.
 
-Then it asks for the password. Nothing shows up while you type it, that's normal. Hit Enter.
+## 2. Log out
 
-You're in when the prompt looks like `pi@<station>:~ $`. Everything you type now runs on the Pi, not your computer.
+1. Type this and hit Enter:
 
-To log out:
+    ```bash
+    exit
+    ```
 
-```bash
-exit
-```
+2. The prompt goes back to your own computer.
 
-## 2. Install on a new Pi
+## 3. Prepare the SD card
 
-Skip this if the station already prints. You need a Raspberry Pi, a microSD card (16 GB or bigger), and a computer with Raspberry Pi Imager (free from raspberrypi.com/software).
+Only for a brand new station. You need a Raspberry Pi, a microSD card (16 GB or bigger), and Raspberry Pi Imager on your computer (free from raspberrypi.com/software).
 
-1. Put the SD card in your computer and open Raspberry Pi Imager.
-2. Pick your Pi model, then Raspberry Pi OS (64-bit), then the SD card.
-3. When it asks about OS customisation, fill it in:
-    - Hostname: the station name, for example `pr-test-rig-3`. Use a name no other station has.
-    - Username: `pi`. It has to be exactly `pi`, the scripts only work from `/home/pi`.
-    - Password: the station password.
-    - Wi-Fi: the shop network name and password, and set the country to US. Skip this if the Pi is on an ethernet cable.
-    - Services: turn on SSH and pick password authentication.
-4. Write the card, put it in the Pi, and power it on. The first boot takes a few minutes.
-5. Log in like in step 1, using the hostname you picked.
+1. Put the SD card in your computer.
+2. Open Raspberry Pi Imager.
+3. Pick your Pi model.
+4. Pick Raspberry Pi OS (64-bit).
+5. Pick the SD card.
+6. When it asks about OS customisation, choose to edit the settings.
+7. Hostname: type the new station name, for example `pr-test-rig-3`. No two stations can have the same name.
+8. Username: type `pi`. It has to be exactly `pi` or the program won't work.
+9. Password: type the station password.
+10. Wi-Fi: type the shop network name and password and set the country to US. Skip this if the Pi uses an ethernet cable.
+11. Services: turn on SSH and pick password authentication.
+12. Save the settings and write the card.
+13. Put the card in the Pi and plug in the power.
+14. Wait about 5 minutes for the first boot.
+15. Go to section 4.
 
-Once you're logged in, install git and download the program:
+## 4. Install the program
 
-```bash
-sudo apt-get update && sudo apt-get install -y git
-```
+Only for a brand new station, after section 3.
 
-```bash
-git clone https://github.com/aasimo13/printer-test-rig.git ~/printer-test-rig
-```
+1. Log in (section 1) with the hostname you picked.
+2. Install git:
 
-Run the installer. It builds the printer driver from source, so it takes around 20 minutes. Don't close the window or let your computer sleep until it's done.
+    ```bash
+    sudo apt-get update && sudo apt-get install -y git
+    ```
 
-```bash
-cd ~/printer-test-rig && sudo bash setup.sh
-```
+3. Download the program:
 
-It should end with `=== Setup complete! ===`. Reboot:
+    ```bash
+    git clone https://github.com/aasimo13/printer-test-rig.git ~/printer-test-rig
+    ```
 
-```bash
-sudo reboot
-```
+4. Run the installer. It takes about 20 minutes. Don't close the window or let your computer sleep.
 
-Wait a minute, then plug in a Canon CP1300, CP1500, or DNP QW410. It should print the test page by itself. If it doesn't, go to step 5.
+    ```bash
+    cd ~/printer-test-rig && sudo bash setup.sh
+    ```
 
-## 3. Update the station
+5. Wait until you see `=== Setup complete! ===`.
+6. Reboot the Pi. This logs you out.
 
-Run this once you're logged in. It pulls the latest scripts from GitHub and installs them. It takes a few seconds and doesn't reboot anything.
+    ```bash
+    sudo reboot
+    ```
 
-```bash
-cd ~/printer-test-rig && git pull && sudo bash update.sh
-```
+7. Wait 1 minute.
+8. Plug in a printer with paper and ribbon loaded.
+9. It should print the test page by itself. If it doesn't, go to section 6.
 
-It should end with `=== Update complete! ===`.
+## 5. Update a station
 
-If you see `No such file or directory`, the program isn't on that Pi yet. Do step 2 instead.
+Do this when Aaron says there's a new version. Takes a few seconds, nothing reboots.
 
-If `update.sh` says to run `setup.sh`, that Pi was never fully installed. Run the installer from step 2.
+1. Log in (section 1).
+2. Run the update:
 
-## 4. Run a command
+    ```bash
+    cd ~/printer-test-rig && git pull && sudo bash update.sh
+    ```
 
-Type the command and hit Enter. Anything that changes the system needs `sudo` in front. These are the useful ones.
+3. Wait until you see `=== Update complete! ===`.
+4. Log out (section 2).
 
-See which printers the station has set up:
+If you see `No such file or directory`, the program was never installed on that Pi. Do section 4 instead.
 
-```bash
-lpstat -a
-```
+If it tells you to run `setup.sh`, the install never finished. Do section 4 from step 4.
 
-See jobs waiting to print:
+## 6. Reset a station
 
-```bash
-lpstat -o
-```
+Do this when a station stops printing. It clears stuck jobs, wipes the printer list, and sets up whatever printer is plugged in again. Each plugged in printer prints one test page. No reboot.
 
-Check the printer shows up on USB at all (look for Canon or DNP in the list):
+1. Leave the printer plugged in and turned on.
+2. Log in (section 1).
+3. Run the reset:
 
-```bash
-lsusb
-```
+    ```bash
+    sudo /home/pi/resetRig.sh
+    ```
 
-Send the test image again by hand. Replace the queue name with one from `lpstat -a`:
+4. Wait until you see `Reset done.`
+5. The printer should start printing within a minute.
+6. Log out (section 2).
 
-```bash
-lp -d <queue-name> /home/pi/testImage.jpg
-```
-
-See the last print errors:
-
-```bash
-sudo tail -n 50 /var/log/cups/error_log
-```
-
-Reboot the Pi (this logs you out, wait a minute before you log back in):
-
-```bash
-sudo reboot
-```
-
-## 5. Reset when it stops printing
-
-This clears stuck jobs, wipes the printer list, restarts the print system, and re-detects whatever printer is plugged in. Each plugged in printer gets set up again and prints one test page. No reboot needed.
-
-Logged in on the Pi:
-
-```bash
-sudo /home/pi/resetRig.sh
-```
-
-Or from your computer without logging in first (it still asks for the password):
-
-```bash
-ssh pi@<station>.local sudo /home/pi/resetRig.sh
-```
-
-To reset without printing a page:
+To reset without printing a page, use this in step 3 instead:
 
 ```bash
 sudo /home/pi/resetRig.sh --no-print
 ```
 
-The end of the output lists the printer queues and jobs. If a printer is plugged in you should see one queue and it should start printing.
+If you see `resetRig.sh: command not found`, update the station first (section 5), then try again.
 
-`resetRig.sh: command not found` means the station hasn't been updated yet. Do step 3 first.
+## 7. Reset from your computer
 
-## Still not printing
+Same as section 6 but in one command, without logging in first.
 
-1. Wait for any sheet in progress to fully come out. The Canon makes four passes per print, so give it about a minute.
-2. Unplug the printer's USB cable, wait 5 seconds, plug it back in.
-3. Run the reset again.
-4. Still nothing, run `sudo tail -n 50 /var/log/cups/error_log` and send the output to Aaron.
+1. Open Terminal (Mac) or PowerShell (Windows).
+2. Run this:
 
-## Connection problems
+    ```bash
+    ssh pi@<station>.local sudo /home/pi/resetRig.sh
+    ```
 
-`Could not resolve hostname`: check the hostname spelling, check you're on the same network, and make sure the Pi is powered on. Give it a minute after power on.
+3. Type the password when it asks and hit Enter.
+4. Wait until you see `Reset done.`
 
-`WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED`: the Pi got reinstalled. Clear the old key, then log in again:
+## 8. Check a station
+
+Log in first (section 1). Type the command and hit Enter.
+
+| To see | Run |
+|---|---|
+| Printers the station has set up | `lpstat -a` |
+| Jobs waiting to print | `lpstat -o` |
+| If the printer shows up on USB (look for Canon or DNP) | `lsusb` |
+| The last print errors | `sudo tail -n 50 /var/log/cups/error_log` |
+
+To print the test page again by hand, get the queue name from `lpstat -a` and run:
 
 ```bash
-ssh-keygen -R <station>.local
+lp -d <queue-name> /home/pi/testImage.jpg
 ```
 
-`Permission denied`: the password is wrong. Passwords are case sensitive.
+To reboot the Pi (this logs you out, wait 1 minute before logging back in):
+
+```bash
+sudo reboot
+```
+
+## 9. Still not printing
+
+Go in order and stop when it prints.
+
+1. Wait for any sheet that's printing to come all the way out. The Canon makes four passes, so give it a minute.
+2. Check the printer has paper and ribbon and shows no error on its screen.
+3. Unplug the printer's USB cable, wait 5 seconds, plug it back in.
+4. Reset the station (section 6).
+5. Reboot the Pi (section 8), then unplug and replug the printer.
+6. Still nothing: log in, run `sudo tail -n 50 /var/log/cups/error_log`, and send the output to Aaron.
+
+## 10. Connection errors
+
+**`Could not resolve hostname`**
+
+1. Check the hostname spelling.
+2. Check you're on the same network as the station.
+3. Check the Pi has power, then wait 1 minute and try again.
+
+**`WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED`**
+
+The Pi was reinstalled. This is expected after section 3.
+
+1. Clear the old key:
+
+    ```bash
+    ssh-keygen -R <station>.local
+    ```
+
+2. Log in again (section 1). Answer `yes` to the question.
+
+**`Permission denied`**
+
+1. The password is wrong. Passwords are case sensitive.
+2. Try again. Ask Aaron if it still fails.
