@@ -85,8 +85,8 @@ fetch_repo() {
         return 0
     fi
     rm -rf "$REPO" "$tmp"
-    if sudo -u pi git clone -b main "$BOOT_DIR/printer-test-rig.bundle" "$tmp"; then
-        sudo -u pi git -C "$tmp" remote set-url origin "$ORIGIN"
+    if git clone -b main "$BOOT_DIR/printer-test-rig.bundle" "$tmp"; then
+        git -C "$tmp" remote set-url origin "$ORIGIN"
     else
         # No git history means "git pull" updates won't work on this station,
         # but it still prints. Fix later by deleting the folder and cloning
@@ -96,17 +96,22 @@ fetch_repo() {
         mkdir -p "$tmp" || return 1
         cp -r "$BOOT_DIR"/. "$tmp"/ || return 1
         rm -f "$tmp/printer-test-rig.bundle"
-        chown -R pi:pi "$tmp"
     fi
+    chown -R pi:pi "$tmp"
     mv "$tmp" "$REPO"
 }
 
 install_once() {
-    # First boot also runs apt's own daily jobs. Wait for the lock instead of
-    # failing on it. setup.sh's apt-get calls pick this up too.
+    # First boot also runs apt's own daily jobs. This makes installs wait for
+    # the dpkg lock instead of failing on it, in setup.sh too. It does not
+    # cover the package list lock, so "apt-get update" gets its own retries.
     echo 'DPkg::Lock::Timeout "600";' > /etc/apt/apt.conf.d/90rig-lock-timeout
 
-    apt-get update || return 1
+    local _
+    for _ in $(seq 1 6); do
+        apt-get update && break
+        sleep 20
+    done
     apt-get install -y git || return 1
     fetch_repo || return 1
     bash "$REPO/setup.sh" || return 1
@@ -142,9 +147,6 @@ run() {
         fi
         status "Attempt $n failed. Last lines of $LOG:"
         tail -n 25 "$LOG" >> "$STATUS"
-        # setup.sh skips the download when the tarball exists, so a partial
-        # download would fail every retry.
-        rm -f /tmp/gutenprint-5.3.5.tar.xz
         sleep 60
     done
 
