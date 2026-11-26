@@ -62,6 +62,31 @@ Only for a brand new station. You need a Raspberry Pi, a microSD card (16 GB or 
 14. Wait about 5 minutes for the first boot.
 15. Go to section 4.
 
+### Shortcut on a Mac that has the program folder
+
+This replaces steps 13 to 15 and all of section 4. Do it right after step 12.
+
+1. Pull the SD card out of the computer and put it back in. Imager ejects it when it finishes.
+2. Open Terminal in the program folder and run:
+
+    ```bash
+    ./prep-sd-card.sh
+    ```
+
+3. Wait until you see `=== Card ready`. The card is ejected for you.
+4. Put the card in the Pi and plug in the power. The Pi needs internet.
+5. Wait about 25 minutes. The Pi installs the program and reboots by itself.
+6. Plug in a printer with paper and ribbon loaded.
+7. It should print the test page by itself. If it doesn't, go to section 6.
+
+To see how far along the install is, log in (section 1) and run:
+
+```bash
+cat /boot/firmware/rig-install-status.txt
+```
+
+The last line says `DONE` when it finished. If it says `FAILED`, reboot the Pi (section 8) and it tries again. If it fails twice, send what that command shows to Aaron.
+
 ## 4. Install the program
 
 Only for a brand new station, after section 3.

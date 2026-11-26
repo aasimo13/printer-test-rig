@@ -5,6 +5,26 @@ Raspberry Pi station that auto prints a test page when a Canon SELPHY CP1300, CP
 Fresh Pi: `sudo bash setup.sh`, then reboot.
 After a `git pull`: `sudo bash update.sh`.
 
+## Self installing SD card
+
+Skips the SSH install on a fresh Pi. Write the card with Raspberry Pi Imager (username `pi`, Wi-Fi and SSH set in the OS customisation), pull the card out, put it back in, then on a Mac with this repo:
+
+```bash
+./prep-sd-card.sh
+```
+
+It copies the program to the card's boot partition and hooks the card's first boot. Put the card in the Pi and power it. The Pi needs internet. It runs `setup.sh` by itself, takes about 25 minutes, and reboots when done.
+
+Progress, from an SSH session on the Pi:
+
+```bash
+cat /boot/firmware/rig-install-status.txt
+```
+
+The same file is readable on any computer if you pull the card. A failed install retries on the next boot. Full log is `/var/log/rig-install.log`.
+
+Tests for the card script: `bash tests/prep-sd-card.test.sh`.
+
 ## Station stopped printing? Reset it
 
 Step by step for SSH, updating, and resetting: [STATION-GUIDE.md](STATION-GUIDE.md).
