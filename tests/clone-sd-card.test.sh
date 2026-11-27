@@ -128,6 +128,8 @@ check "write: refuses a bad hostname" "bash '$CLONE' write 'bad_name' --image '$
 check "write: refuses the source's own name" "bash '$CLONE' write pr-test-rig-9 --image '$IMG' 2>&1 | grep -q \"can't share a name\""
 check "write: nothing written yet" "[ ! -e '$OUT' ]"
 check "write: exits 0" "bash '$CLONE' write pr-test-rig-10 --image '$IMG' > '$WORK/write.log' 2>&1"
+check "write: read back check ran and passed" "grep -q 'Card matches the image' '$WORK/write.log'"
+check "write: image size is not a whole number of 4 MB blocks" "[ \$((\$(stat -f %z '$IMG') % 4194304)) != 0 ]"
 check "write: saved image not changed" "[ \"\$(shasum '$IMG' | awk '{ print \$1 }')\" = '$IMG_SUM' ]"
 check "write: no work files left behind" "[ -z \"\$(find '$WORK/store' -name '.work.*')\" ]"
 check "write: hostname set" "[ \"\$(rootcat '$OUT' /etc/hostname)\" = pr-test-rig-10 ]"

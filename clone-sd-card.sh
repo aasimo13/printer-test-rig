@@ -46,7 +46,10 @@ usage() {
 }
 
 cleanup() {
-    [ -z "$KEEPALIVE" ] || kill "$KEEPALIVE" 2>/dev/null || true
+    if [ -n "$KEEPALIVE" ]; then
+        kill "$KEEPALIVE" 2>/dev/null || true
+        wait "$KEEPALIVE" 2>/dev/null || true
+    fi
     [ -z "$ATTACHED" ] || hdiutil detach "$ATTACHED" -force >/dev/null 2>&1 || true
     [ -z "$WORK" ] || rm -rf "$WORK"
 }
@@ -175,6 +178,14 @@ fsck_ok() {
     local rc=0
     "$E2/e2fsck" "$1" "$2" >/dev/null 2>&1 || rc=$?
     [ "$rc" -le 1 ]
+}
+
+# SHA-256 of the first $2 bytes of a card or file. dd reads whole 4 MB blocks
+# and head cuts it off, which kills dd with a broken pipe. That is expected, so
+# dd's exit status is ignored. A short or failed read still shows as a wrong sum.
+sum_of() {
+    local blocks=$((($2 + 4194303) / 4194304))
+    { $3 dd if="$1" bs=4m count="$blocks" 2>/dev/null || true; } | head -c "$2" | shasum -a 256 | awk '{ print $1 }'
 }
 
 set_size() {
@@ -408,7 +419,7 @@ rename_boot() {
 }
 
 cmd_write() {
-    local target dev mount answer work fs card_name blocks want got
+    local target dev mount answer work fs card_name want got
     [ -n "$NEW_NAME" ] || die "Give the new hostname: ./$(basename "$0") write pr-test-rig-6"
     [[ "$NEW_NAME" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$ ]] || die "\"$NEW_NAME\" is not a valid hostname. Letters, numbers and dashes only."
     load_image
@@ -448,10 +459,14 @@ cmd_write() {
     fs="$work?offset=$((P2_START * 512))"
     rename_root "$fs"
     rename_boot "$work"
-    want="$(shasum -a 256 < "$work" | awk '{ print $1 }')"
+    want="$(sum_of "$work" "$IMAGE_BYTES" "")"
 
     if [ -n "$target" ]; then
         cp "$work" "$target"
+        if [ "$VERIFY" = 1 ]; then
+            [ "$(sum_of "$target" "$IMAGE_BYTES" "")" = "$want" ] || die "The copy does not match what was written."
+            echo "Card matches the image."
+        fi
     else
         echo "=== Writing $(human "$IMAGE_BYTES") to $DISK (several minutes) ==="
         diskutil unmountDisk "$DISK" >/dev/null || die "Could not unmount $DISK."
@@ -459,8 +474,7 @@ cmd_write() {
         sync
         if [ "$VERIFY" = 1 ]; then
             echo "=== Reading the card back to check it ==="
-            blocks=$(((IMAGE_BYTES + 4194303) / 4194304))
-            got="$($SUDO dd if="$dev" bs=4m count="$blocks" 2>/dev/null | head -c "$IMAGE_BYTES" | shasum -a 256 | awk '{ print $1 }')"
+            got="$(sum_of "$dev" "$IMAGE_BYTES" "$SUDO")"
             [ "$got" = "$want" ] || die "The card does not match what was written. The card may be bad, try another one."
             echo "Card matches the image."
         fi
