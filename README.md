@@ -39,9 +39,9 @@ That reads the card into `~/.printer-test-rig/station.img`, shrunk to what is in
 ./clone-sd-card.sh write pr-test-rig-6
 ```
 
-It shows the card it is about to erase and asks before writing. The copy gets the new hostname, a fresh machine ID, a new cloud-init instance ID (which gives it its own SSH host keys), and loses the first boot install hook. Run `write` again with another name for each extra card. The saved image is reused until you `save` with `--replace`.
+It shows the card it is about to erase and asks before writing. The copy gets the new hostname, a fresh machine ID, and its own SSH host keys, and loses the first boot install hook. Run `write` again with another name for each extra card. The saved image is reused until you `save` with `--replace`.
 
-Both steps ask for your Mac password, raw card access needs root. The image holds the station's Wi-Fi password and login hash, so it is kept out of the repo and readable only by you. Delete it with `./clone-sd-card.sh forget`.
+Both steps ask for your Mac password, raw card access needs root. Don't edit the script while it is running. The image holds the station's Wi-Fi password and login hash, so it is kept out of the repo and readable only by you. Delete it with `./clone-sd-card.sh forget`.
 
 Copies keep a small Linux partition (about 2 GB free) however big the card is. Only the built in card reader is picked automatically. For a USB reader pass `--disk diskN`.
 

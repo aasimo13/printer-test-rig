@@ -33,6 +33,8 @@ NEW_NAME=""
 SUDO=""
 WORK=""
 ATTACHED=""
+KEEPALIVE=""
+KEY_TYPES=""
 
 die() {
     echo "ERROR: $*" >&2
@@ -44,6 +46,7 @@ usage() {
 }
 
 cleanup() {
+    [ -z "$KEEPALIVE" ] || kill "$KEEPALIVE" 2>/dev/null || true
     [ -z "$ATTACHED" ] || hdiutil detach "$ATTACHED" -force >/dev/null 2>&1 || true
     [ -z "$WORK" ] || rm -rf "$WORK"
 }
@@ -154,6 +157,10 @@ get_access() {
         echo "Raw access to the card needs your Mac password."
         sudo -v || die "No admin access."
     fi
+    # A slow card reader outlasts sudo's five minute memory. Keep it fresh so
+    # the password is only asked once.
+    ( while kill -0 $$ 2>/dev/null; do sudo -n -v 2>/dev/null || exit; sleep 60; done ) &
+    KEEPALIVE=$!
 }
 
 fs_stat() {
@@ -211,7 +218,8 @@ cmd_save() {
     get_access r
     diskutil unmountDisk "$DISK" >/dev/null || die "Could not unmount $DISK. Close anything using the card."
     WORK="$(mktemp -d)"
-    $SUDO dd if="$dev" of="$WORK/mbr" bs=512 count=1 2>/dev/null || die "Could not read $DISK."
+    # Redirect instead of of=, so the file belongs to this user and not root.
+    $SUDO dd if="$dev" bs=512 count=1 2>/dev/null > "$WORK/mbr" || die "Could not read $DISK."
     parse_mbr "$WORK/mbr"
     head_bytes=$((P2_START * 512))
 
@@ -281,10 +289,24 @@ cmd_save() {
     echo "Card ejected. Put a blank card in and run: ./$(basename "$0") write <new-hostname>"
 }
 
-# Hostname, hosts and machine ID inside the Linux partition of a work image.
+# Queues "replace this file inside the image" for debugfs. Keeps the mode the
+# file had, or uses $4 when it is new. Files written by debugfs belong to root.
+put_file() {
+    local fs="$1" src="$2" path="$3" mode
+    mode="$("$E2/debugfs" -R "stat $path" "$fs" 2>/dev/null | sed -n 's/.*Mode:  \([0-7]*\).*/\1/p' | head -n 1)"
+    [ -n "$mode" ] || mode="$4"
+    printf 'rm %s\nwrite %s %s\nsif %s mode 010%s\n' "$path" "$src" "$path" "$path" "$mode" >> "$WORK/root/cmds"
+}
+
+# Everything that makes the copy its own machine, inside the Linux partition:
+# hostname, hosts, machine ID, cloud-init's record of the hostname, and SSH
+# host keys. Pi OS only makes host keys on a first boot, so they are made here.
 rename_root() {
-    local fs="$1" t="$WORK/root"
+    local fs="$1" t="$WORK/root" type types
     mkdir -p "$t"
+    chmod 700 "$t"
+    : > "$t/cmds"
+
     printf '%s\n' "$NEW_NAME" > "$t/hostname"
     fs_cat "$fs" /etc/hosts | awk -v old="$SRC_NAME" -v new="$NEW_NAME" '
         { for (i = 2; i <= NF; i++) if (tolower($i) == tolower(old)) $i = new; print }
@@ -293,27 +315,52 @@ rename_root() {
     grep -qiw "$NEW_NAME" "$t/hosts" || printf '127.0.1.1\t%s\n' "$NEW_NAME" >> "$t/hosts"
     # An empty machine-id makes systemd create a fresh one on the next boot.
     : > "$t/machine-id"
-    chmod 644 "$t/hostname" "$t/hosts" "$t/machine-id"
-    cat > "$t/cmds" <<'EOF'
-rm /etc/hostname
-write hostname /etc/hostname
-rm /etc/hosts
-write hosts /etc/hosts
-rm /etc/machine-id
-write machine-id /etc/machine-id
-sif /etc/machine-id mode 0100444
-EOF
+    put_file "$fs" hostname /etc/hostname 0644
+    put_file "$fs" hosts /etc/hosts 0644
+    put_file "$fs" machine-id /etc/machine-id 0444
+
+    # Without these cloud-init still thinks the old name is the one it set.
+    if [ -n "$(fs_cat "$fs" /var/lib/cloud/data/previous-hostname)" ]; then
+        printf '%s\n' "$NEW_NAME" > "$t/previous-hostname"
+        put_file "$fs" previous-hostname /var/lib/cloud/data/previous-hostname 0644
+    fi
+    if [ -n "$(fs_cat "$fs" /var/lib/cloud/data/set-hostname)" ]; then
+        printf '{\n "fqdn": "%s",\n "hostname": "%s"\n}\n' "$NEW_NAME" "$NEW_NAME" > "$t/set-hostname"
+        put_file "$fs" set-hostname /var/lib/cloud/data/set-hostname 0644
+    fi
+
+    types="$("$E2/debugfs" -R "ls -p /etc/ssh" "$fs" 2>/dev/null | awk -F/ '{ print $6 }' | sed -n 's/^ssh_host_\([a-z0-9]*\)_key$/\1/p')"
+    [ -n "$types" ] || die "No SSH host keys found inside the image."
+    for type in $types; do
+        fs_cat "$fs" "/etc/ssh/ssh_host_${type}_key.pub" > "$t/old_$type.pub"
+        ssh-keygen -q -t "$type" -N '' -C "root@$NEW_NAME" -f "$t/ssh_host_${type}_key" \
+            || die "Could not make a new $type SSH host key."
+        put_file "$fs" "ssh_host_${type}_key" "/etc/ssh/ssh_host_${type}_key" 0600
+        put_file "$fs" "ssh_host_${type}_key.pub" "/etc/ssh/ssh_host_${type}_key.pub" 0644
+    done
+
     (cd "$t" && "$E2/debugfs" -w -f cmds "$fs" >/dev/null 2>&1) || true
 
     [ "$(fs_cat "$fs" /etc/hostname)" = "$NEW_NAME" ] || die "Could not set the hostname inside the image."
     fs_cat "$fs" /etc/hosts | cmp -s - "$t/hosts" || die "Could not update /etc/hosts inside the image."
     [ -z "$(fs_cat "$fs" /etc/machine-id)" ] || die "Could not reset the machine ID inside the image."
+    for type in $types; do
+        if ! fs_cat "$fs" "/etc/ssh/ssh_host_${type}_key" | cmp -s - "$t/ssh_host_${type}_key" \
+            || ! fs_cat "$fs" "/etc/ssh/ssh_host_${type}_key.pub" | cmp -s - "$t/ssh_host_${type}_key.pub"; then
+            die "Could not write the new $type SSH host key into the image."
+        fi
+        ! cmp -s "$t/old_$type.pub" "$t/ssh_host_${type}_key.pub" || die "The $type SSH host key did not change."
+        "$E2/debugfs" -R "stat /etc/ssh/ssh_host_${type}_key" "$fs" 2>/dev/null | grep -q 'Mode:  0600' \
+            || die "The new $type SSH host key has the wrong permissions."
+    done
+    # The private keys only belong on the card.
+    rm -f "$t"/ssh_host_*_key
     fsck_ok -fn "$fs" || die "The image failed its check after the rename."
+    KEY_TYPES="$(echo "$types" | tr '\n' ' ')"
 }
 
-# Boot partition: cloud-init owns the hostname on these cards, so it has to be
-# told too. A new instance ID makes it treat the clone as a new machine, which
-# also gives it fresh SSH host keys.
+# Boot partition: cloud-init reads user-data on every boot and writes the
+# hostname from it into /etc/hosts, so the name has to change there too.
 rename_boot() {
     local img="$1" boot="$WORK/boot" out dev
     mkdir -p "$boot"
@@ -346,12 +393,6 @@ rename_boot() {
         fi
         cp "$WORK/user-data" "$boot/user-data"
         rm -f "$boot/user-data.orig"
-        if [ -f "$boot/meta-data" ] && grep -Eq '^instance[-_]id:' "$boot/meta-data"; then
-            sed -E "s/^(instance[-_]id):.*/\1: rig-$(echo "$NEW_NAME" | tr '[:upper:]' '[:lower:]')-$(date '+%Y%m%d%H%M%S')/" "$boot/meta-data" > "$WORK/meta-data"
-            cp "$WORK/meta-data" "$boot/meta-data"
-        else
-            echo "NOTE: no instance ID on the card, so the clone keeps the original's SSH host keys."
-        fi
     else
         echo "NOTE: no cloud-init user-data on the card. Hostname is set in the Linux partition only."
     fi
@@ -428,8 +469,8 @@ cmd_write() {
 
     echo ""
     echo "=== Card ready for $NEW_NAME (copy of $SRC_NAME) ==="
+    echo "New machine ID on first boot, new SSH host keys: $KEY_TYPES"
     echo "Card ejected. Put it in the Pi and plug in power. No install needed."
-    echo "First boot takes a couple of minutes longer than usual."
     echo "Then: ssh pi@$(echo "$NEW_NAME" | tr '[:upper:]' '[:lower:]').local"
 }
 

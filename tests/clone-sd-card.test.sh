@@ -70,6 +70,12 @@ mkdir -p "$WORK/root/etc" "$WORK/root/data" "$WORK/root/home/pi/printer-test-rig
 echo "PR-TEST-RIG-9" > "$WORK/root/etc/hostname"
 printf '127.0.0.1\tlocalhost\n::1\t\tlocalhost ip6-localhost\n127.0.1.1\tPR-TEST-RIG-9\n' > "$WORK/root/etc/hosts"
 echo "0123456789abcdef0123456789abcdef" > "$WORK/root/etc/machine-id"
+chmod 444 "$WORK/root/etc/machine-id"
+mkdir -p "$WORK/root/etc/ssh" "$WORK/root/var/lib/cloud/data"
+ssh-keygen -q -t ed25519 -N '' -C root@PR-TEST-RIG-9 -f "$WORK/root/etc/ssh/ssh_host_ed25519_key"
+ssh-keygen -q -t ecdsa -N '' -C root@PR-TEST-RIG-9 -f "$WORK/root/etc/ssh/ssh_host_ecdsa_key"
+echo "PR-TEST-RIG-9" > "$WORK/root/var/lib/cloud/data/previous-hostname"
+printf '{\n "fqdn": "PR-TEST-RIG-9",\n "hostname": "PR-TEST-RIG-9"\n}\n' > "$WORK/root/var/lib/cloud/data/set-hostname"
 dd if=/dev/urandom of="$WORK/root/data/blob" bs=1m count=24 2>/dev/null
 BLOB="$(shasum "$WORK/root/data/blob" | awk '{ print $1 }')"
 dd if=/dev/null of="$WORK/root.img" bs=512 seek="$P2_SIZE" 2>/dev/null
@@ -130,6 +136,15 @@ check "write: hosts lost the old name" "! rootcat '$OUT' /etc/hosts | grep -qi '
 check "write: hosts kept localhost" "rootcat '$OUT' /etc/hosts | grep -q '^127.0.0.1[[:space:]]*localhost\$'"
 check "write: machine ID emptied" "[ -z \"\$(rootcat '$OUT' /etc/machine-id)\" ] && '$E2/debugfs' -R 'stat /etc/machine-id' '$OUT?offset=$OFF' 2>/dev/null | grep -q 'Mode:  0444'"
 check "write: files owned by root" "'$E2/debugfs' -R 'stat /etc/hostname' '$OUT?offset=$OFF' 2>/dev/null | grep -q 'User:     0   Group:     0'"
+check "write: cloud-init's hostname record updated" "[ \"\$(rootcat '$OUT' /var/lib/cloud/data/previous-hostname)\" = pr-test-rig-10 ] && rootcat '$OUT' /var/lib/cloud/data/set-hostname | ruby -rjson -e 'exit(JSON.parse(STDIN.read) == {\"fqdn\" => \"pr-test-rig-10\", \"hostname\" => \"pr-test-rig-10\"} ? 0 : 1)'"
+for type in ed25519 ecdsa; do
+    rootcat "$OUT" "/etc/ssh/ssh_host_${type}_key" > "$WORK/newkey_$type"
+    chmod 600 "$WORK/newkey_$type"
+    check "write: new $type host key" "! rootcat '$OUT' /etc/ssh/ssh_host_${type}_key.pub | cmp -s - '$WORK/root/etc/ssh/ssh_host_${type}_key.pub'"
+    check "write: $type key pair matches" "[ \"\$(ssh-keygen -y -f '$WORK/newkey_$type' | awk '{ print \$1, \$2 }')\" = \"\$(rootcat '$OUT' /etc/ssh/ssh_host_${type}_key.pub | awk '{ print \$1, \$2 }')\" ]"
+    check "write: $type private key is 0600 root" "'$E2/debugfs' -R 'stat /etc/ssh/ssh_host_${type}_key' '$OUT?offset=$OFF' 2>/dev/null | grep -q 'Mode:  0600' && '$E2/debugfs' -R 'stat /etc/ssh/ssh_host_${type}_key' '$OUT?offset=$OFF' 2>/dev/null | grep -q 'User:     0'"
+done
+check "write: saved image still has the old host key" "rootcat '$IMG' /etc/ssh/ssh_host_ed25519_key.pub | cmp -s - '$WORK/root/etc/ssh/ssh_host_ed25519_key.pub'"
 check "write: filesystem is clean" "'$E2/e2fsck' -fn '$OUT?offset=$OFF' >/dev/null 2>&1"
 check "write: data intact" "[ \"\$(blobsum '$OUT')\" = '$BLOB' ]"
 
@@ -139,7 +154,7 @@ check "write: cloud-init hostname set" "grep -qx 'hostname: pr-test-rig-10' '$WO
 check "write: first line still #cloud-config" "[ \"\$(head -n 1 '$WORK/mnt/user-data')\" = '#cloud-config' ]"
 check "write: install hook removed" "! grep -q 'firstBootInstall\\|runcmd' '$WORK/mnt/user-data' && [ ! -e '$WORK/mnt/user-data.orig' ]"
 check "write: user kept" "grep -q 'name: pi' '$WORK/mnt/user-data'"
-check "write: new instance ID" "grep -Eq '^instance_id: rig-pr-test-rig-10-[0-9]{14}\$' '$WORK/mnt/meta-data' && grep -qx 'dsmode: local' '$WORK/mnt/meta-data'"
+check "write: meta-data left alone" "[ \"\$(cat '$WORK/mnt/meta-data')\" = \"\$(printf 'dsmode: local\ninstance_id: rpios-image')\" ]"
 check "write: status file says it is a clone" "grep -q 'Cloned from PR-TEST-RIG-9 as pr-test-rig-10' '$WORK/mnt/rig-install-status.txt'"
 check "write: no AppleDouble files" "[ -z \"\$(find '$WORK/mnt' -name '._*')\" ]"
 diskutil unmount "${DEV#/dev/}s1" >/dev/null
