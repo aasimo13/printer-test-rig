@@ -87,6 +87,40 @@ cat /boot/firmware/rig-install-status.txt
 
 The last line says `DONE` when it finished. If it says `FAILED`, reboot the Pi (section 8) and it tries again. If it fails twice, send what that command shows to Aaron.
 
+### Copy a station that already works
+
+This replaces all of section 3 and section 4. You need a station that prints, a blank SD card, and a Mac that has the program folder. You will be asked for the Mac's password.
+
+1. Log in to the working station (section 1) and shut it down:
+
+    ```bash
+    sudo poweroff
+    ```
+
+2. Wait 30 seconds, unplug the Pi, and take its SD card out.
+3. Put that card in the Mac.
+4. Open Terminal in the program folder and run:
+
+    ```bash
+    ./clone-sd-card.sh save
+    ```
+
+5. Wait until you see `=== Saved`. The card is ejected for you. Put it back in its Pi.
+6. Put the blank card in the Mac.
+7. Run this with the new station's name instead of `pr-test-rig-6`. No two stations can have the same name.
+
+    ```bash
+    ./clone-sd-card.sh write pr-test-rig-6
+    ```
+
+8. It shows the card it is going to erase. Check it is the blank one, then type the disk name it asks for and hit Enter.
+9. Wait until you see `=== Card ready`.
+10. Put the card in the new Pi and plug in the power.
+11. Wait about 3 minutes, then plug in a printer with paper and ribbon loaded.
+12. It should print the test page by itself. If it doesn't, go to section 6.
+
+For more cards, repeat steps 6 to 12 with a new name each time. Steps 1 to 5 are only needed once, the Mac keeps the copy.
+
 ## 4. Install the program
 
 Only for a brand new station, after section 3.
