@@ -31,16 +31,30 @@ if [ "${FORCE_GUTENPRINT_BUILD:-0}" != "1" ] && cups-genppd.5.3 -M 2>/dev/null |
     echo "=== Gutenprint 5.3.5 (canon-cp1500) already installed — skipping build ==="
 else
     echo "=== Building Gutenprint 5.3.5 from source ==="
-    cd /tmp
-    if [ ! -f gutenprint-5.3.5.tar.xz ]; then
-        wget https://sourceforge.net/projects/gimp-print/files/gutenprint-5.3/5.3.5/gutenprint-5.3.5.tar.xz/download -O gutenprint-5.3.5.tar.xz
+    # Build on disk, not in /tmp. Debian 13 makes /tmp a RAM disk capped at
+    # half the Pi's memory, which a small board can run out of mid build.
+    BUILD_DIR="/var/tmp"
+    TARBALL="gutenprint-5.3.5.tar.xz"
+    cd "$BUILD_DIR"
+    if [ ! -f "$TARBALL" ]; then
+        # /var/tmp survives reboots, so download under another name first. A
+        # dropped download must not look like a finished tarball next run.
+        wget https://sourceforge.net/projects/gimp-print/files/gutenprint-5.3/5.3.5/gutenprint-5.3.5.tar.xz/download -O "$TARBALL.part"
+        mv "$TARBALL.part" "$TARBALL"
     fi
-    tar xf gutenprint-5.3.5.tar.xz
+    rm -rf gutenprint-5.3.5
+    if ! tar xf "$TARBALL"; then
+        rm -f "$TARBALL"
+        echo "ERROR: Gutenprint download is damaged. Run setup.sh again." >&2
+        exit 1
+    fi
     cd gutenprint-5.3.5
     ./configure --without-gimp
     make -j$(nproc)
     make install
     ldconfig
+    cd /
+    rm -rf "${BUILD_DIR:?}/gutenprint-5.3.5" "${BUILD_DIR:?}/$TARBALL"
 fi
 
 # Sanity check: the CP1500 driver must be present or the rig cannot print to a CP1500
